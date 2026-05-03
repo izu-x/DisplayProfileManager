@@ -18,6 +18,14 @@
 
 ---
 
+## 🏎️ Ultra-Wide & High-Refresh Optimization
+This fork is specifically engineered for high-performance displays where standard switching methods often fail or cause excessive flickering.
+*   **Zero-Blink Transitions**: Optimized for 240Hz+ panels (Samsung Odyssey G9/G8/G7, LG UltraGear, etc.)
+*   **HDR Stability**: Smart-detection ensures HDR is only toggled when necessary, preventing redundant hardware re-syncs.
+*   **Atomic Topology**: Layout, resolution, and refresh rate are applied in a single Windows API transaction.
+
+---
+
 A lightweight Windows desktop application for managing display profiles with quick switching from the system tray. Perfect for users who frequently change display settings for different tasks or setups.
 
 ## ✨ Features
