@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using NLog;
+using DisplayProfileManager.Core;
 
 namespace DisplayProfileManager.Helpers
 {
@@ -691,6 +692,96 @@ namespace DisplayProfileManager.Helpers
                     }
                 }
 
+                // Update modes with profile resolutions/refresh rates
+                foreach (var displayInfo in displayConfigs)
+                {
+                    if (!displayInfo.IsEnabled) continue;
+
+                    var pathIndex = Array.FindIndex(paths,
+                        x => (x.targetInfo.id == displayInfo.TargetId) && (x.sourceInfo.id == displayInfo.SourceId));
+
+                    if (pathIndex == -1) continue;
+
+                    var path = paths[pathIndex];
+                    
+                    // Update resolution in source mode
+                    if (path.sourceInfo.modeInfoIdx != DISPLAYCONFIG_PATH_MODE_IDX_INVALID)
+                    {
+                        var modeIdx = path.sourceInfo.modeInfoIdx;
+                        if (modes[modeIdx].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                        {
+                            modes[modeIdx].modeInfo.sourceMode.width = (uint)displayInfo.Width;
+                            modes[modeIdx].modeInfo.sourceMode.height = (uint)displayInfo.Height;
+                        }
+                    }
+                    
+                    // Update refresh rate in target mode
+                    if (path.targetInfo.modeInfoIdx != DISPLAYCONFIG_PATH_MODE_IDX_INVALID)
+                    {
+                        var modeIdx = path.targetInfo.modeInfoIdx;
+                        if (modes[modeIdx].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                        {
+                            var currentRate = modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                            uint denom = currentRate.Denominator == 0 ? 1 : currentRate.Denominator;
+                            modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Numerator = (uint)Math.Round(displayInfo.RefreshRate * denom);
+                            modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Denominator = denom;
+                        }
+                    }
+                }
+
+                // Check if anything actually changed in the topology, rotation, or resolution
+                bool stateChanged = false;
+                
+                // Check paths
+                for (int i = 0; i < paths.Length; i++)
+                {
+                    if (paths[i].flags != originalPaths[i].flags ||
+                        paths[i].targetInfo.rotation != originalPaths[i].targetInfo.rotation)
+                    {
+                        logger.Debug($"Topology or rotation change detected at path {i}");
+                        stateChanged = true;
+                        break;
+                    }
+                }
+
+                // Check modes if not already changed
+                if (!stateChanged)
+                {
+                    for (int i = 0; i < modes.Length; i++)
+                    {
+                        if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                        {
+                            if (modes[i].modeInfo.sourceMode.width != originalModes[i].modeInfo.sourceMode.width ||
+                                modes[i].modeInfo.sourceMode.height != originalModes[i].modeInfo.sourceMode.height)
+                            {
+                                logger.Debug($"Resolution change detected at mode {i}");
+                                stateChanged = true;
+                                break;
+                            }
+                        }
+                        else if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                        {
+                            var currentFreq = modes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                            var originalFreq = originalModes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+
+                            if (currentFreq.Numerator != originalFreq.Numerator ||
+                                currentFreq.Denominator != originalFreq.Denominator)
+                            {
+                                logger.Debug($"Refresh rate change detected at mode {i}");
+                                stateChanged = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!stateChanged)
+                {
+                    logger.Info("Display topology, rotation, and resolution have not changed. Skipping SetDisplayConfig.");
+                    // We still need to apply positions if they changed
+                    return ApplyDisplayPosition(displayConfigs);
+                }
+
                 // Apply the new configuration
                 result = SetDisplayConfig(
                     pathCount,
@@ -760,7 +851,6 @@ namespace DisplayProfileManager.Helpers
 
                 logger.Info("Display topology applied successfully");
 
-
                 bool displayPositionApplied = ApplyDisplayPosition(displayConfigs);
                 if (!displayPositionApplied)
                 {
@@ -806,6 +896,10 @@ namespace DisplayProfileManager.Helpers
                     return false;
                 }
 
+                // Clone the original configuration for change detection
+                var originalPaths = (DISPLAYCONFIG_PATH_INFO[])paths.Clone();
+                var originalModes = (DISPLAYCONFIG_MODE_INFO[])modes.Clone();
+
                 // Modify only the paths specified in the partialConfig
                 foreach (var displayInfo in partialConfig)
                 {
@@ -822,6 +916,30 @@ namespace DisplayProfileManager.Helpers
                     {
                         paths[foundPathIndex].flags |= (uint)DisplayConfigPathInfoFlags.DISPLAYCONFIG_PATH_ACTIVE;
                         paths[foundPathIndex].targetInfo.rotation = (uint)displayInfo.Rotation;
+                        
+                        // Update resolution in source mode
+                        if (paths[foundPathIndex].sourceInfo.modeInfoIdx != DISPLAYCONFIG_PATH_MODE_IDX_INVALID)
+                        {
+                            var modeIdx = paths[foundPathIndex].sourceInfo.modeInfoIdx;
+                            if (modes[modeIdx].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                            {
+                                modes[modeIdx].modeInfo.sourceMode.width = (uint)displayInfo.Width;
+                                modes[modeIdx].modeInfo.sourceMode.height = (uint)displayInfo.Height;
+                            }
+                        }
+                        
+                        // Update refresh rate in target mode
+                        if (paths[foundPathIndex].targetInfo.modeInfoIdx != DISPLAYCONFIG_PATH_MODE_IDX_INVALID)
+                        {
+                            var modeIdx = paths[foundPathIndex].targetInfo.modeInfoIdx;
+                            if (modes[modeIdx].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                            {
+                                var currentRate = modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                                uint denom = currentRate.Denominator == 0 ? 1 : currentRate.Denominator;
+                                modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Numerator = (uint)Math.Round(displayInfo.RefreshRate * denom);
+                                modes[modeIdx].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Denominator = denom;
+                            }
+                        }
                     }
                     else
                     {
@@ -831,7 +949,54 @@ namespace DisplayProfileManager.Helpers
                     logger.Debug($"Partially updating TargetId {displayInfo.TargetId} flags to: 0x{paths[foundPathIndex].flags:X}");
                 }
 
-                // NOTE: We do NOT disable unspecified monitors here. That is the key difference.
+                // Check if anything actually changed in the topology, rotation, or resolution
+                bool partialStateChanged = false;
+                
+                // Check paths
+                for (int i = 0; i < paths.Length; i++)
+                {
+                    if (paths[i].flags != originalPaths[i].flags ||
+                        paths[i].targetInfo.rotation != originalPaths[i].targetInfo.rotation)
+                    {
+                        partialStateChanged = true;
+                        break;
+                    }
+                }
+                
+                // Check modes if not already changed
+                if (!partialStateChanged)
+                {
+                    for (int i = 0; i < modes.Length; i++)
+                    {
+                        if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                        {
+                            if (modes[i].modeInfo.sourceMode.width != originalModes[i].modeInfo.sourceMode.width ||
+                                modes[i].modeInfo.sourceMode.height != originalModes[i].modeInfo.sourceMode.height)
+                            {
+                                partialStateChanged = true;
+                                break;
+                            }
+                        }
+                        else if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                        {
+                            var currentFreq = modes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                            var originalFreq = originalModes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                            
+                            if (currentFreq.Numerator != originalFreq.Numerator || 
+                                currentFreq.Denominator != originalFreq.Denominator)
+                            {
+                                partialStateChanged = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!partialStateChanged)
+                {
+                    logger.Info("Partial display topology and resolutions have not changed. Skipping SetDisplayConfig.");
+                    return true;
+                }
 
                 result = SetDisplayConfig(
                     pathCount,
@@ -895,6 +1060,12 @@ namespace DisplayProfileManager.Helpers
                     return false;
                 }
 
+                // Clone modes to check for changes
+                var originalModes = modes.Select(m => {
+                    var clone = m;
+                    return clone;
+                }).ToArray();
+
                 // Set monitor position based on displayConfigs
                 foreach (var displayInfo in displayConfigs)
                 {
@@ -904,16 +1075,46 @@ namespace DisplayProfileManager.Helpers
                     if (!paths[foundPathIndex].targetInfo.targetAvailable)
                         continue;
 
-                    // Set monitor position
+                    // Set monitor position and resolution
                     var modeInfoIndex = paths[foundPathIndex].sourceInfo.modeInfoIdx;
 
                     if (modeInfoIndex >= 0 && modeInfoIndex < modes.Length)
                     {
                         modes[modeInfoIndex].modeInfo.sourceMode.position.x = displayInfo.DisplayPositionX;
                         modes[modeInfoIndex].modeInfo.sourceMode.position.y = displayInfo.DisplayPositionY;
+                        
+                        // Update resolution if it's a source mode
+                        if (modes[modeInfoIndex].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                        {
+                            modes[modeInfoIndex].modeInfo.sourceMode.width = (uint)displayInfo.Width;
+                            modes[modeInfoIndex].modeInfo.sourceMode.height = (uint)displayInfo.Height;
+                        }
 
                         logger.Debug($"Setting targetId {displayInfo.TargetId} ({displayInfo.DeviceName}, " +
-                                  $"position to: X:{displayInfo.DisplayPositionX} Y:{displayInfo.DisplayPositionY}");
+                                  $"position: X:{displayInfo.DisplayPositionX} Y:{displayInfo.DisplayPositionY}, " +
+                                  $"res: {displayInfo.Width}x{displayInfo.Height}");
+                    }
+
+                    // Update refresh rate in target mode if available
+                    var targetModeIndex = paths[foundPathIndex].targetInfo.modeInfoIdx;
+                    if (targetModeIndex >= 0 && targetModeIndex < modes.Length)
+                    {
+                        if (modes[targetModeIndex].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                        {
+                            // We only update the numerator for common refresh rates (e.g., 60, 120, 144, 240)
+                            // Windows will usually handle the denominator (1 or 1001) correctly if SDC_ALLOW_CHANGES is used
+                            var currentRate = modes[targetModeIndex].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                            
+                            // If the denominator is 0 (invalid), set to 1
+                            uint denom = currentRate.Denominator == 0 ? 1 : currentRate.Denominator;
+                            
+                            // Set new numerator based on requested rate
+                            modes[targetModeIndex].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Numerator = (uint)Math.Round(displayInfo.RefreshRate * denom);
+                            modes[targetModeIndex].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Denominator = denom;
+                            
+                            logger.Debug($"Setting targetId {displayInfo.TargetId} refresh rate to {displayInfo.RefreshRate}Hz " +
+                                         $"(Rational: {modes[targetModeIndex].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq.Numerator}/{denom})");
+                        }
                     }
                 }
 
@@ -961,6 +1162,42 @@ namespace DisplayProfileManager.Helpers
                                       $"SourceId={path.sourceInfo.id}, PathIndex={i}");
                         }
                     }
+                }
+
+
+                // Check if positions or resolutions actually changed
+                bool stateChanged = false;
+                for (int i = 0; i < modes.Length; i++)
+                {
+                    if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                    {
+                        if (modes[i].modeInfo.sourceMode.position.x != originalModes[i].modeInfo.sourceMode.position.x ||
+                            modes[i].modeInfo.sourceMode.position.y != originalModes[i].modeInfo.sourceMode.position.y ||
+                            modes[i].modeInfo.sourceMode.width != originalModes[i].modeInfo.sourceMode.width ||
+                            modes[i].modeInfo.sourceMode.height != originalModes[i].modeInfo.sourceMode.height)
+                        {
+                            stateChanged = true;
+                            break;
+                        }
+                    }
+                    else if (modes[i].infoType == DisplayConfigModeInfoType.DISPLAYCONFIG_MODE_INFO_TYPE_TARGET)
+                    {
+                        var currentFreq = modes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                        var originalFreq = originalModes[i].modeInfo.targetMode.targetVideoSignalInfo.vSyncFreq;
+                        
+                        if (currentFreq.Numerator != originalFreq.Numerator || 
+                            currentFreq.Denominator != originalFreq.Denominator)
+                        {
+                            stateChanged = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!stateChanged)
+                {
+                    logger.Info("Display positions and resolutions have not changed. Skipping SetDisplayConfig.");
+                    return true;
                 }
 
 
@@ -1152,16 +1389,35 @@ namespace DisplayProfileManager.Helpers
             bool allSuccessful = true;
             logger.Info($"HDR APPLY: Starting to apply HDR settings for {displayConfigs.Count} displays");
 
+            // Get current system state to avoid unnecessary toggling (which causes blinking)
+            var currentConfigs = GetDisplayConfigs();
+
             foreach (var display in displayConfigs)
             {
                 logger.Debug($"HDR APPLY: Processing {display.DeviceName}:");
                 logger.Debug($"HDR APPLY:   IsHdrSupported: {display.IsHdrSupported}");
-                logger.Debug($"HDR APPLY:   IsHdrEnabled: {display.IsHdrEnabled}");
+                logger.Debug($"HDR APPLY:   IsHdrEnabled (Target): {display.IsHdrEnabled}");
                 logger.Debug($"HDR APPLY:   IsEnabled: {display.IsEnabled}");
                 logger.Debug($"HDR APPLY:   TargetId: {display.TargetId}");
 
                 if (display.IsHdrSupported && display.IsEnabled)
                 {
+                    // Find current state for this monitor
+                    var currentDisplay = currentConfigs.FirstOrDefault(c => 
+                        c.AdapterId.HighPart == display.AdapterId.HighPart && 
+                        c.AdapterId.LowPart == display.AdapterId.LowPart && 
+                        c.TargetId == display.TargetId);
+
+                    if (currentDisplay != null)
+                    {
+                        logger.Debug($"HDR APPLY:   Current HDR Enabled: {currentDisplay.IsHdrEnabled}");
+                        if (currentDisplay.IsHdrEnabled == display.IsHdrEnabled)
+                        {
+                            logger.Info($"HDR APPLY: HDR state for {display.DeviceName} is already {display.IsHdrEnabled}. Skipping to avoid blinking.");
+                            continue;
+                        }
+                    }
+
                     logger.Info($"HDR APPLY: Applying HDR state {display.IsHdrEnabled} to {display.DeviceName}");
                     bool success = SetHdrState(display.AdapterId, display.TargetId, display.IsHdrEnabled);
                     if (!success)
