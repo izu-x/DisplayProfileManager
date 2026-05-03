@@ -4,6 +4,7 @@
 [![.NET Framework](https://img.shields.io/badge/.NET%20Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-orange.svg)](https://claude.ai/code)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-yellow.svg)](https://buymeacoffee.com/izu_x)
 
 ---
 
@@ -20,6 +21,7 @@ A lightweight Windows desktop application for managing display profiles with qui
 
 ## ✨ Features
 
+- ⚡ **FLICK FREEEEEEEEEE!!** - Seamless, atomic display switching that eliminates monitor blinking (Exclusive to this fork!)
 - 🖥️ **Multiple Display Profiles** - Save and manage unlimited display configurations
 - 🔄 **Quick Profile Switching** - Change profiles instantly from the system tray
 - 📐 **Resolution & Refresh Rate Control** - Adjust display settings per monitor
