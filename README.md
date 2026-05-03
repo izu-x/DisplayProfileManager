@@ -8,12 +8,13 @@
 
 ---
 
-⚠️ Project Maintenance Status
-
-The original project by **zac15987** is currently **on hold**. 
-
-🚀 This project is now maintained in the **[izu-x/DisplayProfileManager](https://github.com/izu-x/DisplayProfileManager)** fork. 
-Check out the latest releases and updates there!
+> [!IMPORTANT]
+> ### 🚀 Project Evolution: Atomic "Blink-Free" Switching
+> The original project by **zac15987** is currently on hold. 
+> 
+> This fork (**[izu-x/DisplayProfileManager](https://github.com/izu-x/DisplayProfileManager)**) is the active, maintained version. It introduces a major re-engineering of the display engine to support **Atomic Seamless Switching** — eliminating the "monitor blink" (re-sync) common in other display managers.
+>
+> **[Download the latest Seamless Release here!](https://github.com/izu-x/DisplayProfileManager/releases)**
 
 ---
 
@@ -21,7 +22,7 @@ A lightweight Windows desktop application for managing display profiles with qui
 
 ## ✨ Features
 
-- ⚡ **FLICK FREEEEEEEEEE!!** - Seamless, atomic display switching that eliminates monitor blinking (Exclusive to this fork!)
+- ⚡ **Atomic Seamless Switching** - Industry-leading display engine that eliminates monitor blinking (Exclusive to this fork!)
 - 🖥️ **Multiple Display Profiles** - Save and manage unlimited display configurations
 - 🔄 **Quick Profile Switching** - Change profiles instantly from the system tray
 - 📐 **Resolution & Refresh Rate Control** - Adjust display settings per monitor
