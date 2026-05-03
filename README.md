@@ -9,7 +9,10 @@
 
 ⚠️ Project Maintenance Status
 
-This project is currently **on hold** — updates and maintenance are paused for now. If I regain interest in the future, I may resume development and maintenance. Thank you for your understanding!
+The original project by **zac15987** is currently **on hold**. 
+
+🚀 This project is now maintained in the **[izu-x/DisplayProfileManager](https://github.com/izu-x/DisplayProfileManager)** fork. 
+Check out the latest releases and updates there!
 
 ---
 
@@ -117,7 +120,7 @@ A lightweight Windows desktop application for managing display profiles with qui
 
 ```bash
 # Clone the repository
-git clone https://github.com/zac15987/DisplayProfileManager.git
+git clone https://github.com/izu-x/DisplayProfileManager.git
 cd DisplayProfileManager
 
 # Restore NuGet packages
