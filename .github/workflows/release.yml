@@ -7,18 +7,21 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.1
+      uses: microsoft/setup-msbuild@v2
 
     - name: Setup NuGet
-      uses: NuGet/setup-nuget@v1
+      uses: NuGet/setup-nuget@v2
       
     - name: Restore NuGet Packages
       run: nuget restore DisplayProfileManager.sln
@@ -30,13 +33,18 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        copy bin/Release/*.exe release/
-        copy bin/Release/*.dll release/
-        copy bin/Release/*.config release/
-        Compress-Archive -Path release/* -DestinationPath DisplayProfileManager.zip
+        if (Test-Path bin/Release/DisplayProfileManager.exe) {
+          copy bin/Release/*.exe release/
+          copy bin/Release/*.dll release/
+          copy bin/Release/*.config release/
+          Compress-Archive -Path release/* -DestinationPath DisplayProfileManager.zip
+        } else {
+          Write-Error "Build output not found in bin/Release"
+          exit 1
+        }
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
       with:
         tag_name: ${{ github.ref_name == 'main' && format('v1.0.{0}', github.run_number) || github.ref_name }}
